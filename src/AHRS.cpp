@@ -26,8 +26,19 @@ AHRS::AHRS(){
     
     yawOffset = 0.0f;
     
-    accHighPassFilter = 10.f;
-    velHighPassFilter = 10.f;
+    fc_acc_low = 0.1;
+    accBiquadLow.setType(OFX_BIQUAD_TYPE_LOWPASS);
+    
+    fc_acc_high = 0.005;
+    accBiquadHigh.setType(OFX_BIQUAD_TYPE_HIGHPASS);
+    
+    fc_velocity = 0.005;
+    velBiquad.setType(OFX_BIQUAD_TYPE_HIGHPASS);
+    
+    fc_position = 0.001;
+    posBiquad.setType(OFX_BIQUAD_TYPE_HIGHPASS);
+    
+    base = 0;
     
     isAvailable = false;
     isPacketReady = false;
@@ -36,14 +47,21 @@ AHRS::AHRS(){
     currLine = "";
     currPort = "";
     
+    kAcc = ofVec3f::zero();
+    kAccFilter.setup(ofVec3f::zero(), ofVec3f::zero(), ofVec3f::zero(), 1e-4, 1e-2);
+    
     plot = NULL;
 }
 
 AHRS::~AHRS(){
-    serial.close();
+    close();
     if(plot){
         delete plot;
     }
+}
+
+void AHRS::close(){
+    serial.close();
 }
 
 void AHRS::setup(string port){
@@ -51,16 +69,26 @@ void AHRS::setup(string port){
     ofSetLogLevel("ofSerial", OF_LOG_ERROR);
     
     camera.setup();
-    camera.distance = 1500;
-    camera.latitude = -30;
+    camera.target.y = 500;
+    camera.distance = 2000;
+    camera.latitude = -10;
     
     box.set(650, 40, 250, 1, 1, 1);
 
     plot = new ofxHistoryPlot(240, true);
-    plot->add(&acc.x, "Acc X", ofColor::red);
-    plot->add(&acc.y, "Acc Y", ofColor::green);
-    plot->add(&acc.z, "Acc Z", ofColor(0,125,255));
-    plot->add(&velocity.z, "Velocity Z", ofColor::cyan);
+//    plot->add(&acc.x, "Acc X", ofColor(255,0,0,80));
+    //    plot->add(&acc.y, "Acc Y", ofColor(0,255,0,80));
+    plot->add(&base, "zero", ofColor(255,255,255,70));
+    plot->add(&acc.z, "Acc Z", ofColor(0,125,255,60));
+//    plot->add(&scaledVel.x, "Velocity X", ofColor::magenta);
+//    plot->add(&scaledVel.y, "Velocity Y", ofColor::yellow);
+//    plot->add(&scaledVel.y, "Velocity Y", ofColor::white);
+//    plot->add(&kAcc.x, "kalman acc X", ofColor::red);
+//    plot->add(&kAcc.y, "kalman acc Y", ofColor::green);
+//    plot->add(&kAcc.z, "kalman acc Z", ofColor(0,125,255,150));
+    plot->add(&filteredAcc.z, "biquad acc Z", ofColor(0,125,255,150));
+    plot->add(&filteredVel.z, "biquad vel Z", ofColor(125,180,255,200));
+//    plot->add(&filteredPos.z, "highpass pos", ofColor(255,255,255,255));
     plot->setRange(-256, 256);
     plot->setRespectBorders(true);
     
@@ -70,7 +98,6 @@ void AHRS::setup(string port){
 void AHRS::connect(){
     
     serial.setup(currPort, 57600);
-    
     if(serial.isInitialized()) {
         serial.writeBytes((unsigned char *)BINARY_OUTPUT, 3);
         serial.writeBytes((unsigned char *)CONTINUOUS_STREAMING, 3);
@@ -78,7 +105,7 @@ void AHRS::connect(){
     }
 }
 
-void AHRS::update(){
+float AHRS::update(){
     
     if(!serial.isInitialized()) {
         if(numUpdateSinceReconnect++ > 120){
@@ -112,28 +139,52 @@ void AHRS::update(){
             numUpdateSinceLastPacket = 0;
         }
     }
+    
     updateMotionTracking();
+    
+    if( filteredVel.z < 0){
+        return filteredVel.z * 0.00002;
+    } else {
+        return filteredVel.z * 0.00007;
+    }
 }
 
 void AHRS::updateMotionTracking(){
     
-    gravity = box.getOrientationQuat() * ofVec3f(0.f, 256.f, 0.f);
-    
+    ofQuaternion q = box.getOrientationQuat();
+    gravity = q * ofVec3f(0.f, 256.f, 0.f);
     acc.x = acc_y+gravity.x;
     acc.y = acc_z-gravity.y;
     acc.z = -(acc_x-gravity.z);
+//    acc.x = acc_y;
+//    acc.y = acc_z;
+//    acc.z = -acc_x;
     
-    if(acc.length() > 70) {
-        velocity.z += acc.z * 0.1;
-    }
-    velocity *= 0.995;
-
-    if(velocity.length() > 70) {
-        position += velocity * 0.5;
-    }
-    position *= 0.98;
+    accBiquadLow.setFc(fc_acc_low);
+    accBiquadLow.update(acc);
+    filteredAcc = accBiquadLow.value();
     
-//    box.setPosition(position);
+//    filteredAcc = acc;
+    
+    accBiquadHigh.setFc(fc_acc_high);
+    accBiquadHigh.update(filteredAcc);
+    filteredAcc = accBiquadHigh.value();
+    
+    velocity += filteredAcc;
+    velBiquad.setFc(fc_velocity);
+    velBiquad.update(velocity);
+    filteredVel = velBiquad.value();
+//    filteredVel = velocity;
+    
+    position += filteredVel;
+    posBiquad.setFc(fc_position);
+    posBiquad.update(position);
+    filteredPos = posBiquad.value();
+    
+    kAcc = kAccFilter.update(acc);
+    
+    box.setPosition(filteredPos * 0.05);
+//    box.setPosition(ofVec3f(0,0,position.z));
 }
 
 void AHRS::readAsLog(){
@@ -176,7 +227,11 @@ void AHRS::draw(){
     ofQuaternion qt = qr * qp * qy;
     box.setOrientation(qt);
     
+    ofPushStyle();
+    ofSetColor(0, 125, 255);
     box.drawWireframe();
+    ofPopStyle();
+    
     drawGrid();
     drawAcc();
     
@@ -191,9 +246,11 @@ void AHRS::draw(){
 //    ofDrawBitmapString(buff.str(), 10, 15);
     
     ofPushStyle();
-//    accPlot->draw(0, 0, 250, 150);
-    int w = ofGetWidth() * 0.5;
-    plot->draw((ofGetWidth()-w)*0.5, 10, w, 250);
+    int w = ofGetWidth() * 0.25;
+    int h = ofGetHeight()*0.25;
+    plot->draw(ofGetWidth()-10-w, 10, w, h);
+//    int w = ofGetWidth() * 0.5;
+//    plot->draw((ofGetWidth()-w)*0.5, 10, w, 250);
     ofPopStyle();
 }
 
@@ -209,7 +266,7 @@ void AHRS::drawAcc(){
     ofSetColor(255,255,255);
     
     ofSetColor(255, 255, 0);
-    ofDrawArrow(ofVec3f::zero(), velocity, 5);
+    ofDrawArrow(ofVec3f::zero(), gravity, 5);
     
     ofPopStyle();
 }

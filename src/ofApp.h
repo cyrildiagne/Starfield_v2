@@ -2,7 +2,7 @@
 
 #include "ofMain.h"
 
-#define USE_AHRS
+//#define USE_AHRS
 
 #ifdef USE_AHRS
     #include "AHRS.h"
@@ -10,9 +10,23 @@
     #include "KinectInput.h"
 #endif
 
-
+#include "ofxUI.h"
+#include "View.h"
 
 class ofApp : public ofBaseApp{
+    
+public:
+    void setup();
+    void update();
+    void draw();
+    void exit();
+    
+    void setupUI();
+    
+    void windowResized(int w, int h);
+    void keyPressed(int key);
+    
+private:
     
 #ifdef USE_AHRS
     AHRS ahrs;
@@ -20,10 +34,10 @@ class ofApp : public ofBaseApp{
     KinectInput kinect;
 #endif
     
-public:
-    void setup();
-    void update();
-    void draw();
-
-    void keyPressed(int key);
+    View view;
+    
+    ofxUICanvas* viewControlUI;
+    ofxUICanvas* sensorUI;
+    
+    bool bDrawDebug;
 };

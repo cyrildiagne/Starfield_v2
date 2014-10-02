@@ -18,11 +18,13 @@
 #endif
 
 #include "ofxOpenCv.h"
+#include "ofxHistoryPlot.h"
 
 #define CAM_WIDTH 640
 #define CAM_HEIGHT 480
 
-
+#include "ofxSimpleKalmanFilter.h"
+#include "ofxBiquadFilter.h"
 
 
 class ROI : public ofBaseDraws, public ofRectangle{
@@ -66,8 +68,14 @@ public:
     ~KinectInput();
     
     void setup();
-    void update();
+    float update();
     void draw();
+    
+    //--- params
+    
+    float blobSizeMin;
+    int threshold;
+    float speedLowPassFc;
     
 private:
     
@@ -88,8 +96,7 @@ private:
     ROI roi;
     
     int kinectAngle, prevKinectAngle;
-    float blobSizeMin;
-    int threshold;
+    
     int bUserFound;
     float avgDepth;
     float avgDepthSmoothed;
@@ -98,6 +105,15 @@ private:
     float currPosMax;
     float currSpeed;
     float currSpeedMax;
+    
+    ofxHistoryPlot * plot;
+    void setupPlot();
+    
+    float currSpeedKalman;
+    ofxBasicSimpleKalmanFilter<float> speedFilter;
+    
+    float currSpeedBiquad;
+    ofxBiquadFilter_<float> speedLowPassBiquad;
 };
 
 

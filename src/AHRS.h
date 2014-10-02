@@ -12,7 +12,8 @@
 #include "ofMain.h"
 #include "Camera.h"
 #include "ofxHistoryPlot.h"
-
+#include "ofxSimpleKalmanFilter.h"
+#include "ofxBiquadFilter.h"
 
 class AHRS {
     
@@ -22,8 +23,9 @@ public:
     
     void setup(string port);
     void connect();
-    void update();
+    float update();
     void draw();
+    void close();
     
     void applyReferenceYaw();
     
@@ -36,12 +38,17 @@ public:
     float yawOffset;
     
     ofVec3f gravity;
+    ofVec3f rawAcc;
     ofVec3f acc;
     ofVec3f velocity;
     ofVec3f position;
     
-    float accHighPassFilter;
-    float velHighPassFilter;
+    float fc_acc_high;
+    float fc_acc_low;
+    float fc_velocity;
+    float fc_position;
+    
+    float base;
     
 private:
     
@@ -65,6 +72,21 @@ private:
     ofBoxPrimitive box;
     void drawGrid();
     void drawAcc();
+    
+    ofVec3f scaledVel;
+    
+    ofVec3f kAcc;
+    ofxBasicSimpleKalmanFilter<ofVec3f> kAccFilter;
+    
+    ofVec3f filteredAcc;
+    ofxBiquadFilter3f accBiquadLow;
+    ofxBiquadFilter3f accBiquadHigh;
+    
+    ofVec3f filteredVel;
+    ofxBiquadFilter3f velBiquad;
+    
+    ofVec3f filteredPos;
+    ofxBiquadFilter3f posBiquad;
     
     ofxHistoryPlot * plot;
 };

@@ -8,7 +8,7 @@
 
 #include "KinectInput.h"
 
-KinectInput::KinectInput(){
+KinectInput::KinectInput():plot(NULL){
     
 }
 
@@ -25,10 +25,13 @@ void KinectInput::setup(){
 #else
     kinectPlayer.loadMovie("kinect_depth.mov");
     kinectPlayer.play();
+    kinectPlayer.setLoopState(OF_LOOP_NORMAL);
     videoTempImg.allocate(CAM_WIDTH, CAM_HEIGHT, OF_IMAGE_COLOR);
 #endif
     
     depthImage.allocate(CAM_WIDTH, CAM_HEIGHT);
+    depthImage.setUseTexture(true);
+    
     thresholdImage.allocate(CAM_WIDTH, CAM_HEIGHT);
     
     kinectAngle = prevKinectAngle = 0;
@@ -40,18 +43,36 @@ void KinectInput::setup(){
     currPosMin = currPosMin = 0.f;
     currSpeed = currSpeedMax = 0.f;
     
+    currSpeedKalman = 0.f;
+    speedFilter.setup(0.f, 0.f, 0.f, 1e-4, 1e-2);
+    
+    currSpeedBiquad = 0.f;
+    speedLowPassFc = 0.05;
+    speedLowPassBiquad.setFc(speedLowPassFc);
+    speedLowPassBiquad.setType(OFX_BIQUAD_TYPE_LOWPASS);
+    
     roi.x = 640.f*0.3;
     roi.width = 640.f*0.3;
     roi.height = 480;
+    
+    setupPlot();
 }
 
-void KinectInput::update(){
+void KinectInput::setupPlot(){
+    plot = new ofxHistoryPlot(240, true);
+    plot->add(&currSpeed, "currSpeed", ofColor(0,125,255,125));
+    plot->add(&currSpeedKalman, "currSpeedKalman", ofColor(0,125,255,255));
+    plot->add(&currSpeedBiquad, "currSpeedBiquad", ofColor(0,255,125,255));
+    plot->setRange(-0.1, 0.1);
+    plot->setRespectBorders(true);
+}
+
+float KinectInput::update(){
     
     bool isFrameNew = false;
     
 #ifdef USE_DEVICE
     if(prevKinectAngle != kinectAngle) {
-        //kinect.setCameraTiltAngle(kinectAngle);
         prevKinectAngle = kinectAngle;
     }
     kinect.update();
@@ -79,46 +100,67 @@ void KinectInput::update(){
         thresholdImage.threshold(threshold);
         
         //find blog
-        
-        contourFinder.findContours(thresholdImage, 0, roi.width*roi.height, 1, false);
+        contourFinder.findContours(thresholdImage, blobSizeMin, roi.width*roi.height, 1, false);
         
         fillBlobPoly();
         
         // retrieve average depth
         
         updateAvgDepth();
+        
+        currSpeed = (avgDepth-avgDepthSmoothed);//*0.55;
     }
     
     // smooth it's value
     
-    float delta = (avgDepth-avgDepthSmoothed)*0.15;
-    avgDepthSmoothed += delta;
     
-    currSpeed += (delta-currSpeed)*0.15;
+    avgDepthSmoothed = avgDepth;
+    
+//    currSpeed += (delta-currSpeed)*0.55;
+    currSpeedKalman = speedFilter.update(currSpeed);
+    
+    speedLowPassBiquad.setFc(speedLowPassFc);
+    currSpeedBiquad = speedLowPassBiquad.update(currSpeed);
     
     if(currSpeed > currSpeedMax) currSpeedMax = currSpeed;
     if(avgDepthSmoothed < currPosMin) currPosMin = avgDepthSmoothed;
     if(avgDepthSmoothed > currPosMax) currPosMax = avgDepthSmoothed;
+    
+    return currSpeedBiquad;
 }
 
 void KinectInput::draw(){
     
+    ofPushStyle();
     ofPushMatrix();
+    ofTranslate(0, ofGetHeight()-depthImage.getHeight()*0.5);
     ofScale(0.5, 0.5);
-    depthImage.draw(0,0);
+    ofSetColor(255,255,255,255);
+#ifdef USE_DEVICE
+    kinect.drawDepth(0,0);
+#else
+    kinectPlayer.draw(0, 0);
+#endif
     roi.draw(0, 0);
-    ofTranslate(0, depthImage.getHeight());
-    thresholdImage.draw(0, 0);
+//    ofTranslate(depthImage.getWidth(), 0);
+//    thresholdImage.draw(0, 0);
     if(contourFinder.nBlobs > 0 &&  contourFinder.blobs[0].area > blobSizeMin) {
         contourFinder.draw(roi.x, roi.y);
     }
-    roi.draw(0, 0);
+//    roi.draw(0, 0);
     ofPopMatrix();
     
-    ostringstream log;
-    log << "Avg Depth : " << avgDepth << "\n";
-    log << "Curr Speed : " << currSpeed;
-    ofDrawBitmapString(log.str(), depthImage.getWidth()*0.5+10, 15);
+    plot->update();
+    int w = depthImage.getWidth()*0.5;
+    int h = depthImage.getHeight()*0.5;
+    plot->draw(ofGetWidth()-w, ofGetHeight()-h, w, h);
+    
+    ofPopStyle();
+    
+//    ostringstream log;
+//    log << "Avg Depth : " << avgDepth << "\n";
+//    log << "Curr Speed : " << currSpeed;
+//    ofDrawBitmapString(log.str(), depthImage.getWidth()*0.5+10, 15);
 }
 
 //----

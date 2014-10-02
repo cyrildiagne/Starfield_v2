@@ -1,0 +1,20 @@
+<Widget>
+    <Kind>4</Kind>
+    <Name>fc_acc_low</Name>
+    <Value>0.044334974</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>fc_acc_high</Name>
+    <Value>0.003103448</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>fc_velocity</Name>
+    <Value>0.002660099</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>fc_position</Name>
+    <Value>0.014778325</Value>
+</Widget>

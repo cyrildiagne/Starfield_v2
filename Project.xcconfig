@@ -14,6 +14,7 @@ ICON_FILE_PATH = $(OF_PATH)/libs/openFrameworksCompiled/project/osx/
 //ICON_FILE_PATH = bin/data/
 
 OFX_CV_HEADERS = "../../../addons/ofxOpenCv/libs/opencv/include/"
+OFX_IO_HEADERS = "../../../addons/ofxIO/libs/ofxIO/include/"
 
 OTHER_LDFLAGS = $(OF_CORE_LIBS) 
-HEADER_SEARCH_PATHS = $(OF_CORE_HEADERS) $(OFX_CV_HEADERS)
+HEADER_SEARCH_PATHS = $(OF_CORE_HEADERS) $(OFX_CV_HEADERS) $(OFX_IO_HEADERS)

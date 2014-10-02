@@ -1,0 +1,51 @@
+<Widget>
+    <Kind>2</Kind>
+    <Name>isVisible</Name>
+    <Value>1</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>speed</Name>
+    <Value>10000.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>offsetX</Name>
+    <Value>0.014778376</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>offsetY</Name>
+    <Value>0.073891640</Value>
+</Widget>
+<Widget>
+    <Kind>11</Kind>
+    <Name>moon pos</Name>
+    <XValue>0.182266012</XValue>
+    <YValue>0.300492615</YValue>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>moon rotation</Name>
+    <Value>0.000000000</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>moon scale</Name>
+    <Value>0.581280768</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>clouds offset Y</Name>
+    <Value>-8916.256835938</Value>
+</Widget>
+<Widget>
+    <Kind>4</Kind>
+    <Name>starSize</Name>
+    <Value>143.763549805</Value>
+</Widget>
+<Widget>
+    <Kind>42</Kind>
+    <Name>numStars</Name>
+    <Value>1400</Value>
+</Widget>
