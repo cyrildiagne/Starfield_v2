@@ -23,7 +23,7 @@ void KinectInput::setup(){
     kinect.init();
     kinect.open();
 #else
-    kinectPlayer.loadMovie("kinect_depth.mov");
+    kinectPlayer.loadMovie("kinect_depth_v2.mov");
     kinectPlayer.play();
     kinectPlayer.setLoopState(OF_LOOP_NORMAL);
     videoTempImg.allocate(CAM_WIDTH, CAM_HEIGHT, OF_IMAGE_COLOR);
@@ -32,12 +32,16 @@ void KinectInput::setup(){
     depthImage.allocate(CAM_WIDTH, CAM_HEIGHT);
     depthImage.setUseTexture(true);
     
+#ifdef TOP_TRACKING
+    
+#else
     thresholdImage.allocate(CAM_WIDTH, CAM_HEIGHT);
+#endif
     
     kinectAngle = prevKinectAngle = 0;
     threshold = 10;
     bUserFound = 0;
-    avgDepth = avgDepthSmoothed = 0.f;
+    avgPos = avgPrevPos = 0.f;
     blobSizeMin = 5000.f;
     
     currPosMin = currPosMin = 0.f;
@@ -94,37 +98,33 @@ float KinectInput::update(){
         
         CvRect cvROI = cvRect(roi.x,roi.y,roi.width,roi.height);
         cvSetImageROI(depthImage.getCvImage(),cvROI);
-        cvSetImageROI(thresholdImage.getCvImage(), cvROI);
-        
-        thresholdImage = depthImage;
-        thresholdImage.threshold(threshold);
-        
-        //find blog
-        contourFinder.findContours(thresholdImage, blobSizeMin, roi.width*roi.height, 1, false);
-        
-        fillBlobPoly();
         
         // retrieve average depth
-        
+#ifdef TOP_TRACKING
+        updateAvgX();
+#else
+        cvSetImageROI(thresholdImage.getCvImage(), cvROI);
+        thresholdImage = depthImage;
+        thresholdImage.threshold(threshold);
+        //find blog
+        contourFinder.findContours(thresholdImage, blobSizeMin, roi.width*roi.height, 1, false);
+        fillBlobPoly();
         updateAvgDepth();
+#endif
         
-        currSpeed = (avgDepth-avgDepthSmoothed);//*0.55;
+        currSpeed = (avgPos-avgPrevPos);//*0.55;
     }
     
-    // smooth it's value
-    
-    
-    avgDepthSmoothed = avgDepth;
-    
-//    currSpeed += (delta-currSpeed)*0.55;
     currSpeedKalman = speedFilter.update(currSpeed);
     
     speedLowPassBiquad.setFc(speedLowPassFc);
     currSpeedBiquad = speedLowPassBiquad.update(currSpeed);
     
     if(currSpeed > currSpeedMax) currSpeedMax = currSpeed;
-    if(avgDepthSmoothed < currPosMin) currPosMin = avgDepthSmoothed;
-    if(avgDepthSmoothed > currPosMax) currPosMax = avgDepthSmoothed;
+    
+    if(avgPos < currPosMin) currPosMin = avgPos;
+    if(avgPos > currPosMax) currPosMax = avgPos;
+    avgPrevPos = avgPos;
     
     return currSpeedBiquad;
 }
@@ -142,12 +142,21 @@ void KinectInput::draw(){
     kinectPlayer.draw(0, 0);
 #endif
     roi.draw(0, 0);
-//    ofTranslate(depthImage.getWidth(), 0);
-//    thresholdImage.draw(0, 0);
+
+#ifdef TOP_TRACKING
+    for (int i=0; i<lineMax.size(); i++) {
+        ofSetColor(255, 255, 0);
+//        ofLine(i+roi.x, lineMax[i], i+1+roi.x, lineMax[i+1]);
+        ofRect(roi.x+lineMax[i], i+roi.y, 2, 2);//, lineMax[i+1]+10, i+1+roi.y);
+    }
+    ofSetColor(255, 0, 255);
+    ofLine(roi.x-avgPos*CAM_WIDTH, roi.y, roi.x-avgPos*CAM_WIDTH, roi.y+roi.height);
+#else
     if(contourFinder.nBlobs > 0 &&  contourFinder.blobs[0].area > blobSizeMin) {
         contourFinder.draw(roi.x, roi.y);
     }
-//    roi.draw(0, 0);
+#endif
+
     ofPopMatrix();
     
     plot->update();
@@ -156,14 +165,53 @@ void KinectInput::draw(){
     plot->draw(ofGetWidth()-w, ofGetHeight()-h, w, h);
     
     ofPopStyle();
-    
-//    ostringstream log;
-//    log << "Avg Depth : " << avgDepth << "\n";
-//    log << "Curr Speed : " << currSpeed;
-//    ofDrawBitmapString(log.str(), depthImage.getWidth()*0.5+10, 15);
 }
 
 //----
+#ifdef TOP_TRACKING
+
+void KinectInput::updateAvgX() {
+    
+    int buffw = 10;
+    int pos;
+    unsigned char * depthPixels = depthImage.getRoiPixels();
+    
+    lineMax.clear();
+    lineMax.resize(roi.height);
+    
+    for(int j=0; j<roi.height; j++) {
+        int currmax = 0;
+        int currmaxpos = 0;
+        for (int i=0; i<roi.width; i++) {
+            pos = j*roi.width+i;
+//            int val = 0;
+//            int buffwsafe = min(i,buffw);
+//            for (int k=0; k<buffwsafe; k++) {
+//                if(depthPixels[pos-k]>threshold) {
+//                    val += depthPixels[pos-k];
+//                }
+//            }
+            int val = depthPixels[pos];
+            if (val > threshold && val > currmax && val < 250) {
+                currmax = val;
+                currmaxpos = i;
+            }
+        }
+        lineMax[j] = currmaxpos;
+    }
+    
+    int total;
+    for (int i=0; i<lineMax.size(); i++) {
+        total += lineMax[i];
+    }
+    
+    //    avgPos = contourFinder.blobs[0].centroid.x;
+    avgPos = total / lineMax.size();
+    avgPos /= CAM_WIDTH;
+    avgPos *= -1;
+}
+
+#else
 
 void KinectInput::fillBlobPoly() {
     
@@ -232,12 +280,13 @@ void KinectInput::updateAvgDepth() {
             }
         }
     }
-    avgDepth = 1 - (float)totalDepths / (numDepths*255);
+    avgPos = 1 - (float)totalDepths / (numDepths*255);
     
     // reset avgDepth if nan
     
-    if(avgDepth!=avgDepth) avgDepth = 0;
-    
+    if(avgPos!=avgPos) avgPos = 0;
     
     thresholdImage.flagImageChanged();
 }
+
+#endif

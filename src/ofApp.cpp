@@ -39,7 +39,7 @@ void ofApp::setupUI(){
     viewControlUI->addSlider("moon scale", 0, 2, &view.moonScale);
     viewControlUI->addSpacer();
     viewControlUI->addLabel("Clouds");
-    viewControlUI->addSlider("clouds offset Y", 0.f, -10000.f, &view.clouds.offset.y);
+    viewControlUI->addSlider("clouds offset Y", 0.f, -15000.f, &view.clouds.offset.y);
     viewControlUI->addSpacer();
     viewControlUI->addLabel("Stars");
     viewControlUI->addSlider("starSize", 0.f, 512.f, &view.stars.starSize);
@@ -59,9 +59,14 @@ void ofApp::setupUI(){
     sensorUI->loadSettings("ahrs_settings.xml");
 #else
     sensorUI->addLabel("KINECT");
+    sensorUI->addSlider("roiX", 0, 640, &kinect.roi.x);
+    sensorUI->addSlider("roiY", 0, 480, &kinect.roi.y);
+    sensorUI->addSlider("roiWidth", 0, 640, &kinect.roi.width);
+    sensorUI->addSlider("roiHeight", 0, 480, &kinect.roi.height);
     sensorUI->addSlider("blobSizeMin", 0.f, 50000.f, &kinect.blobSizeMin);
     sensorUI->addIntSlider("threshold", 0, 255, &kinect.threshold);
     sensorUI->addSlider("speedLowPassFc", 0.f, 0.1f, &kinect.speedLowPassFc);
+    sensorUI->autoSizeToFitWidgets();
     sensorUI->loadSettings("kinect_settings.xml");
 #endif
     sensorUI->setVisible(bDrawDebug);

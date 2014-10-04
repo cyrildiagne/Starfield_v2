@@ -13,6 +13,8 @@
 
 //#define USE_DEVICE
 
+#define TOP_TRACKING
+
 #ifdef USE_DEVICE
     #include "ofxKinect.h"
 #endif
@@ -77,6 +79,8 @@ public:
     int threshold;
     float speedLowPassFc;
     
+    ROI roi;
+    
 private:
     
 #ifdef USE_DEVICE
@@ -87,19 +91,24 @@ private:
 #endif
     
     void fillBlobPoly();
+    
+#ifdef TOP_TRACKING
+    void updateAvgX();
+    vector<int> lineMax;
+#else
     void updateAvgDepth();
-    
-    ofxCvContourFinder  contourFinder;
-    ofxCvGrayscaleImage depthImage;
     ofxCvGrayscaleImage thresholdImage;
+    ofxCvContourFinder  contourFinder;
+#endif
     
-    ROI roi;
+    ofxCvGrayscaleImage depthImage;
     
     int kinectAngle, prevKinectAngle;
     
     int bUserFound;
-    float avgDepth;
-    float avgDepthSmoothed;
+    
+    float avgPos;
+    float avgPrevPos;
     
     float currPosMin;
     float currPosMax;
